@@ -75,15 +75,25 @@ def record_inference(
     REQUESTS_TOTAL.labels(model=model, endpoint=endpoint, status="success").inc()
 
 
+def _clean_model_name(name: str) -> str:
+    return name.removesuffix(":latest")
+
+
 async def poll_models() -> None:
+    known_models: set[str] = set()
     while True:
         try:
             models = await ollama_client.get_running_models()
+            current = {_clean_model_name(m.get("name", "unknown")) for m in models}
+            for name in known_models - current:
+                MODEL_SIZE_BYTES.labels(model=name).set(0)
+                MODEL_LOADED.labels(model=name).set(0)
             MODELS_LOADED.set(len(models))
             for m in models:
-                name = m.get("name", "unknown")
+                name = _clean_model_name(m.get("name", "unknown"))
                 MODEL_SIZE_BYTES.labels(model=name).set(m.get("size", 0))
                 MODEL_LOADED.labels(model=name).set(1)
+            known_models = current
         except Exception:
             pass
         await asyncio.sleep(settings.poll_interval_seconds)
