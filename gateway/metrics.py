@@ -52,6 +52,19 @@ MODEL_LOADED = Gauge(
     ["model"],
 )
 
+EMBEDDING_DURATION = Histogram(
+    "ollama_embedding_duration_seconds",
+    "Embedding request wall-clock duration in seconds",
+    ["model"],
+    buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0],
+)
+
+EMBEDDING_REQUESTS_TOTAL = Counter(
+    "ollama_embedding_requests_total",
+    "Total embedding requests",
+    ["model", "status"],
+)
+
 
 def calculate_tps(eval_count: int, eval_duration_ns: int) -> float:
     if eval_duration_ns <= 0 or eval_count <= 0:

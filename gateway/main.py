@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 import ollama_client
-from metrics import REQUESTS_TOTAL, poll_models, record_inference
+from metrics import REQUESTS_TOTAL, EMBEDDING_REQUESTS_TOTAL, EMBEDDING_DURATION, poll_models, record_inference
 from router import select_model
 
 
@@ -68,4 +68,21 @@ async def chat(request: Request):
         raise HTTPException(status_code=502, detail=str(exc))
 
     record_inference(model, "chat", response, time.time() - start)
+    return response
+
+
+@app.post("/api/embeddings")
+async def embeddings(request: Request):
+    body = await request.json()
+    model = body.get("model", "nomic-embed-text")
+
+    start = time.time()
+    try:
+        response = await ollama_client.embeddings(body)
+    except Exception as exc:
+        EMBEDDING_REQUESTS_TOTAL.labels(model=model, status="error").inc()
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    EMBEDDING_DURATION.labels(model=model).observe(time.time() - start)
+    EMBEDDING_REQUESTS_TOTAL.labels(model=model, status="success").inc()
     return response
