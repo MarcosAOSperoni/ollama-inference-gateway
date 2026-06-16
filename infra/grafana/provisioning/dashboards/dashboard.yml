@@ -4,5 +4,6 @@ providers:
     folder: ""
     type: file
     disableDeletion: false
+    allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards

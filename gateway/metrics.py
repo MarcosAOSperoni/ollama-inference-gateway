@@ -1,5 +1,5 @@
 import asyncio
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Histogram, Gauge  # Gauge kept for model metrics
 import ollama_client
 from config import settings
 
@@ -20,12 +20,6 @@ TOKENS_GENERATED = Counter(
 PROMPT_TOKENS = Counter(
     "ollama_prompt_tokens_total",
     "Total prompt tokens processed across all requests",
-    ["model"],
-)
-
-TOKENS_PER_SECOND = Gauge(
-    "ollama_tokens_per_second",
-    "Tokens generated per second for the most recent request",
     ["model"],
 )
 
@@ -79,12 +73,9 @@ def record_inference(
     eval_duration_ns = response.get("eval_duration", 0)
     prompt_eval_count = response.get("prompt_eval_count", 0)
 
-    tps = calculate_tps(eval_count, eval_duration_ns)
-
     REQUEST_DURATION.labels(model=model, endpoint=endpoint).observe(wall_duration)
     TOKENS_GENERATED.labels(model=model).inc(eval_count)
     PROMPT_TOKENS.labels(model=model).inc(prompt_eval_count)
-    TOKENS_PER_SECOND.labels(model=model).set(tps)
     REQUESTS_TOTAL.labels(model=model, endpoint=endpoint, status="success").inc()
 
 
