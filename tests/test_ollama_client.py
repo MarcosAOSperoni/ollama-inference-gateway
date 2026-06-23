@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../gateway"))
 from pytest_httpx import HTTPXMock
 from ollama_client import generate, chat, get_running_models
 
+BASE = "http://localhost:11434"
 
 FAKE_GENERATE_RESPONSE = {
     "model": "llama3:70b",
@@ -46,10 +47,10 @@ FAKE_PS_RESPONSE = {
 async def test_generate_success(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:11434/api/generate",
+        url=f"{BASE}/api/generate",
         json=FAKE_GENERATE_RESPONSE,
     )
-    result = await generate({"model": "llama3:70b", "prompt": "say hello"})
+    result = await generate({"model": "llama3:70b", "prompt": "say hello"}, base_url=BASE)
     assert result["eval_count"] == 20
     assert result["response"] == "hello world"
 
@@ -57,23 +58,23 @@ async def test_generate_success(httpx_mock: HTTPXMock):
 async def test_chat_success(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:11434/api/chat",
+        url=f"{BASE}/api/chat",
         json=FAKE_CHAT_RESPONSE,
     )
-    result = await chat({
-        "model": "llama3:70b",
-        "messages": [{"role": "user", "content": "hi"}],
-    })
+    result = await chat(
+        {"model": "llama3:70b", "messages": [{"role": "user", "content": "hi"}]},
+        base_url=BASE,
+    )
     assert result["eval_count"] == 10
 
 
 async def test_get_running_models_success(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:11434/api/ps",
+        url=f"{BASE}/api/ps",
         json=FAKE_PS_RESPONSE,
     )
-    models = await get_running_models()
+    models = await get_running_models(base_url=BASE)
     assert len(models) == 1
     assert models[0]["name"] == "llama3:70b"
 
@@ -83,10 +84,10 @@ async def test_generate_retries_on_connect_error(httpx_mock: HTTPXMock):
     httpx_mock.add_exception(httpx.ConnectError("refused"))
     httpx_mock.add_response(
         method="POST",
-        url="http://localhost:11434/api/generate",
+        url=f"{BASE}/api/generate",
         json=FAKE_GENERATE_RESPONSE,
     )
-    result = await generate({"model": "llama3:70b", "prompt": "hi"})
+    result = await generate({"model": "llama3:70b", "prompt": "hi"}, base_url=BASE)
     assert result["eval_count"] == 20
 
 
@@ -95,4 +96,4 @@ async def test_generate_raises_after_max_retries(httpx_mock: HTTPXMock):
     httpx_mock.add_exception(httpx.ConnectError("refused"))
     httpx_mock.add_exception(httpx.ConnectError("refused"))
     with pytest.raises(httpx.ConnectError):
-        await generate({"model": "llama3:70b", "prompt": "hi"})
+        await generate({"model": "llama3:70b", "prompt": "hi"}, base_url=BASE)

@@ -1,4 +1,14 @@
 services:
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    volumes:
+      - ./backends.yml:/app/backends.yml:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.51.0
     volumes:

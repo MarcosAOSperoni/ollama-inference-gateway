@@ -4,16 +4,18 @@ Benchmark each model through the gateway.
 Reports tokens/sec, latency, and token counts per prompt.
 
 Usage:
-    python benchmark.py
-    python benchmark.py --gateway http://192.168.0.78:8080
+    python3 benchmark.py                    # sequential then concurrent
+    python3 benchmark.py --gateway http://192.168.0.30:8080
+    python3 benchmark.py --concurrent-only  # skip sequential
 """
 
 import argparse
 import json
 import time
+import threading
 import urllib.request
 
-GATEWAY = "http://localhost:8080"
+GATEWAY = "http://192.168.0.30:8080"
 
 MODELS = [
     {
@@ -22,14 +24,14 @@ MODELS = [
     },
     {
         "label": "gemma4:12b (classify)",
-        "payload": {"task_type": "classify"},
+        "payload": {"model": "gemma4:12b", "task_type": "classify"},
     },
 ]
 
 PROMPTS = [
-    {"name": "short", "prompt": "What is machine learning? Answer in one sentence."},
+    {"name": "short",  "prompt": "What is machine learning? Answer in one sentence."},
     {"name": "medium", "prompt": "Explain how transformers work in neural networks. Be concise."},
-    {"name": "long", "prompt": "Compare supervised, unsupervised, and reinforcement learning. Give an example of each."},
+    {"name": "long",   "prompt": "Compare supervised, unsupervised, and reinforcement learning. Give an example of each."},
 ]
 
 
@@ -53,9 +55,10 @@ def tps(response: dict) -> float:
     return eval_count / (eval_duration_ns / 1e9)
 
 
-def run(gateway: str) -> None:
-    print(f"\nGateway: {gateway}")
-    print("=" * 70)
+def run_sequential(gateway: str) -> None:
+    print(f"\n{'='*70}")
+    print("SEQUENTIAL (models run one at a time)")
+    print(f"{'='*70}")
 
     for model in MODELS:
         print(f"\n>>> {model['label']}")
@@ -64,7 +67,7 @@ def run(gateway: str) -> None:
         results = []
         for p in PROMPTS:
             payload = {**model["payload"], "prompt": p["prompt"]}
-            print(f"  [{p['name']}] ", end="", flush=True)
+            print(f"  [{p['name']:6}] ", end="", flush=True)
 
             wall_start = time.time()
             try:
@@ -74,27 +77,78 @@ def run(gateway: str) -> None:
                 continue
             wall_sec = time.time() - wall_start
 
-            tokens = resp.get("eval_count", 0)
-            prompt_tokens = resp.get("prompt_eval_count", 0)
             speed = tps(resp)
             results.append(speed)
-
             print(
-                f"{tokens} tokens | {speed:.1f} tok/s | "
-                f"{wall_sec:.1f}s wall | prompt={prompt_tokens} tok"
+                f"{resp.get('eval_count', 0):4} tokens | {speed:5.1f} tok/s | "
+                f"{wall_sec:5.1f}s wall"
             )
 
         if results:
-            avg = sum(results) / len(results)
-            best = max(results)
-            print(f"  {'avg':>8}: {avg:.1f} tok/s   best: {best:.1f} tok/s")
+            print(f"  {'avg':>10}: {sum(results)/len(results):.1f} tok/s   "
+                  f"best: {max(results):.1f} tok/s")
 
-    print("\n" + "=" * 70)
-    print("Done.\n")
+
+def run_concurrent(gateway: str) -> None:
+    print(f"\n{'='*70}")
+    print("CONCURRENT (both models running simultaneously)")
+    print(f"{'='*70}")
+
+    for p in PROMPTS:
+        print(f"\n--- prompt: {p['name']} ---")
+        results = {}
+        errors = {}
+        lock = threading.Lock()
+
+        def worker(model: dict) -> None:
+            label = model["label"]
+            payload = {**model["payload"], "prompt": p["prompt"]}
+            wall_start = time.time()
+            try:
+                resp = call_gateway(gateway, payload)
+                wall_sec = time.time() - wall_start
+                speed = tps(resp)
+                with lock:
+                    results[label] = {
+                        "tokens": resp.get("eval_count", 0),
+                        "tps": speed,
+                        "wall": wall_sec,
+                    }
+            except Exception as e:
+                with lock:
+                    errors[label] = str(e)
+
+        threads = [threading.Thread(target=worker, args=(m,)) for m in MODELS]
+        start = time.time()
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        total_wall = time.time() - start
+
+        for model in MODELS:
+            label = model["label"]
+            if label in errors:
+                print(f"  {label}: ERROR — {errors[label]}")
+            elif label in results:
+                r = results[label]
+                print(f"  {label}: {r['tokens']:4} tokens | {r['tps']:5.1f} tok/s | {r['wall']:5.1f}s wall")
+
+        print(f"  total wall time: {total_wall:.1f}s")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", default=GATEWAY, help="Gateway base URL")
+    parser.add_argument("--concurrent-only", action="store_true")
     args = parser.parse_args()
-    run(args.gateway)
+
+    print(f"Gateway: {args.gateway}")
+
+    if not args.concurrent_only:
+        run_sequential(args.gateway)
+
+    run_concurrent(args.gateway)
+
+    print(f"\n{'='*70}")
+    print("Done.\n")

@@ -1,0 +1,14 @@
+backends:
+  - url: "http://<mac-studio-ip>:11434"
+    name: "mac-studio"
+    models:
+      - "llama3:70b"
+      - "gemma4:12b"
+      - "nomic-embed-text"
+    priority: 1
+  # Second inference node — uncomment when added
+  # - url: "http://<gaming-pc-ip>:11434"
+  #   name: "gaming-pc"
+  #   models:
+  #     - "gemma4:12b"
+  #   priority: 2

@@ -1,6 +1,8 @@
 import asyncio
-from prometheus_client import Counter, Histogram, Gauge  # Gauge kept for model metrics
+from prometheus_client import Counter, Histogram, Gauge
+
 import ollama_client
+import config
 from config import settings
 
 
@@ -31,19 +33,27 @@ REQUESTS_TOTAL = Counter(
 
 MODELS_LOADED = Gauge(
     "ollama_models_loaded_count",
-    "Number of models currently loaded in Ollama",
+    "Number of models currently loaded per backend",
+    ["backend"],
 )
 
 MODEL_SIZE_BYTES = Gauge(
     "ollama_model_size_bytes",
     "Memory consumed by a loaded model in bytes",
-    ["model"],
+    ["model", "backend"],
 )
 
 MODEL_LOADED = Gauge(
     "ollama_model_loaded",
     "Whether a model is currently loaded (1=yes 0=no)",
+    ["model", "backend"],
+)
+
+INFERENCE_TPS = Histogram(
+    "ollama_inference_tps",
+    "Tokens per second for each inference request (from Ollama eval_duration)",
     ["model"],
+    buckets=[5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 80, 100],
 )
 
 EMBEDDING_DURATION = Histogram(
@@ -77,6 +87,9 @@ def record_inference(
     TOKENS_GENERATED.labels(model=model).inc(eval_count)
     PROMPT_TOKENS.labels(model=model).inc(prompt_eval_count)
     REQUESTS_TOTAL.labels(model=model, endpoint=endpoint, status="success").inc()
+    tps = calculate_tps(eval_count, eval_duration_ns)
+    if tps > 0:
+        INFERENCE_TPS.labels(model=model).observe(tps)
 
 
 def _clean_model_name(name: str) -> str:
@@ -84,20 +97,22 @@ def _clean_model_name(name: str) -> str:
 
 
 async def poll_models() -> None:
-    known_models: set[str] = set()
+    known: dict[str, set[str]] = {}
     while True:
-        try:
-            models = await ollama_client.get_running_models()
-            current = {_clean_model_name(m.get("name", "unknown")) for m in models}
-            for name in known_models - current:
-                MODEL_SIZE_BYTES.labels(model=name).set(0)
-                MODEL_LOADED.labels(model=name).set(0)
-            MODELS_LOADED.set(len(models))
-            for m in models:
-                name = _clean_model_name(m.get("name", "unknown"))
-                MODEL_SIZE_BYTES.labels(model=name).set(m.get("size", 0))
-                MODEL_LOADED.labels(model=name).set(1)
-            known_models = current
-        except Exception:
-            pass
+        for backend in config.backends:
+            try:
+                models = await ollama_client.get_running_models(base_url=backend.url)
+                current = {_clean_model_name(m.get("name", "unknown")) for m in models}
+                prev = known.get(backend.name, set())
+                for name in prev - current:
+                    MODEL_SIZE_BYTES.labels(model=name, backend=backend.name).set(0)
+                    MODEL_LOADED.labels(model=name, backend=backend.name).set(0)
+                MODELS_LOADED.labels(backend=backend.name).set(len(models))
+                for m in models:
+                    name = _clean_model_name(m.get("name", "unknown"))
+                    MODEL_SIZE_BYTES.labels(model=name, backend=backend.name).set(m.get("size", 0))
+                    MODEL_LOADED.labels(model=name, backend=backend.name).set(1)
+                known[backend.name] = current
+            except Exception:
+                pass
         await asyncio.sleep(settings.poll_interval_seconds)

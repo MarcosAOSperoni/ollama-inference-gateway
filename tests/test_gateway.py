@@ -49,7 +49,7 @@ async def test_generate_routes_classify_to_small_model(client):
             json={"prompt": "classify this email", "task_type": "classify"},
         )
         called_payload = mock.call_args[0][0]
-        assert called_payload["model"] == "llama3:8b"
+        assert called_payload["model"] == "gemma4:12b"
 
 
 async def test_generate_strips_task_type_before_forwarding(client):

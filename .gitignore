@@ -2,6 +2,3 @@ gateway/.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-infra/prometheus.yml
-infra/.env
-.DS_Store

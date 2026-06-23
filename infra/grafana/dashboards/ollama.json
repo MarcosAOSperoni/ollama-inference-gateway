@@ -31,7 +31,7 @@
       "id": 5,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
       "pluginVersion": "10.4.0",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "ollama_models_loaded_count", "instant": false, "legendFormat": "__auto", "range": true, "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "ollama_models_loaded_count", "instant": false, "legendFormat": "{{backend}}", "range": true, "refId": "A" }],
       "title": "Models loaded",
       "type": "stat"
     },
@@ -49,7 +49,7 @@
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
       "pluginVersion": "10.4.0",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "ollama_model_size_bytes / 1e9", "instant": false, "legendFormat": "{{model}}", "range": true, "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "ollama_model_size_bytes / 1e9", "instant": false, "legendFormat": "{{model}} ({{backend}})", "range": true, "refId": "A" }],
       "title": "Model memory (GB)",
       "type": "stat"
     },
@@ -67,7 +67,10 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
       "id": 1,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "rate(ollama_tokens_generated_total[5m])", "instant": false, "legendFormat": "{{model}}", "range": true, "refId": "A" }],
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "rate(ollama_tokens_generated_total[1m]) > 0", "instant": false, "legendFormat": "{{model}} (throughput)", "range": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "rate(ollama_inference_tps_sum[1m]) / rate(ollama_inference_tps_count[1m])", "instant": false, "legendFormat": "{{model}} (per-request avg)", "range": true, "refId": "B" }
+      ],
       "title": "Tokens per Second",
       "type": "timeseries"
     },
@@ -86,8 +89,8 @@
       "id": 2,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum(rate(ollama_request_duration_seconds_bucket[5m])) by (le, model))", "instant": false, "legendFormat": "p95 {{model}}", "range": true, "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum(rate(ollama_request_duration_seconds_bucket[5m])) by (le, model))", "instant": false, "legendFormat": "p50 {{model}}", "range": true, "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum(rate(ollama_request_duration_seconds_bucket[1m])) by (le, model))", "instant": false, "legendFormat": "p95 {{model}}", "range": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum(rate(ollama_request_duration_seconds_bucket[1m])) by (le, model))", "instant": false, "legendFormat": "p50 {{model}}", "range": true, "refId": "B" }
       ],
       "title": "Inference latency",
       "type": "timeseries"
@@ -106,8 +109,73 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "id": 3,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "rate(ollama_requests_total[5m])", "instant": false, "legendFormat": "{{model}} {{status}}", "range": true, "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "rate(ollama_requests_total[1m])", "instant": false, "legendFormat": "{{model}} {{status}}", "range": true, "refId": "A" }],
       "title": "Request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green" }, { "color": "red", "value": 80 }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "increase(ollama_tokens_generated_total[$__range]) + increase(ollama_prompt_tokens_total[$__range])",
+          "instant": false,
+          "legendFormat": "{{model}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(increase(ollama_tokens_generated_total[$__range]) + increase(ollama_prompt_tokens_total[$__range]))",
+          "instant": false,
+          "legendFormat": "all models",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "timeFrom": "now/d",
+      "title": "Tokens Used Today",
       "type": "timeseries"
     }
   ],
@@ -118,6 +186,6 @@
   "timezone": "browser",
   "title": "Ollama Inference",
   "uid": "ollama-inference",
-  "version": 1,
+  "version": 3,
   "weekStart": ""
 }
