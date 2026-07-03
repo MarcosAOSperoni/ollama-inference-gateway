@@ -15,7 +15,7 @@ def _make_backend(name: str, models: list[str], priority: int) -> Backend:
 
 def setup_function():
     config.backends = [
-        _make_backend("mac", ["llama3:70b", "gemma4:12b"], priority=1),
+        _make_backend("mac", ["llama3:70b", "gemma4:12b", "qwen2.5:7b"], priority=1),
     ]
 
 
@@ -33,6 +33,11 @@ def test_classify_task_type_resolves_to_small_model():
 def test_generate_task_type_resolves_to_default_model():
     model, backend = select_backend(None, "generate")
     assert model == "llama3:70b"
+
+
+def test_tool_task_type_resolves_to_tool_model():
+    model, backend = select_backend(None, "tool")
+    assert model == "qwen2.5:7b"
 
 
 def test_unknown_task_type_resolves_to_default_model():

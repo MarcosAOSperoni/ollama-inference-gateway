@@ -9,6 +9,7 @@ def _resolve_model(requested_model: str | None, task_type: str | None) -> str:
         "classify": settings.small_model,
         "generate": settings.default_model,
         "summarize": settings.default_model,
+        "tool": settings.tool_model,
     }
     if task_type and task_type in task_map:
         return task_map[task_type]

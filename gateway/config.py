@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gateway_port: int = 8080
     default_model: str = "llama3:70b"
     small_model: str = "gemma4:12b"
+    tool_model: str = "qwen2.5:7b"
     poll_interval_seconds: int = 3
     max_retries: int = 3
 

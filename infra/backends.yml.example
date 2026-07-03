@@ -5,6 +5,7 @@ backends:
       - "llama3:70b"
       - "gemma4:12b"
       - "nomic-embed-text"
+      - "qwen2.5:7b"
     priority: 1
   # Second inference node — uncomment when added
   # - url: "http://<gaming-pc-ip>:11434"
