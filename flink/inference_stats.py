@@ -91,6 +91,7 @@ def main() -> None:
         .key_by(_ModelKeySelector())
         .window(TumblingProcessingTimeWindows.of(Time.seconds(WINDOW_SECONDS)))
         .process(_InferenceWindowFunction())
+        .print()
     )
 
     env.execute("inference-stats")
