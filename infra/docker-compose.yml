@@ -54,6 +54,25 @@ services:
       - kafka_data:/var/lib/kafka/data
     restart: unless-stopped
 
+  pushgateway:
+    image: prom/pushgateway:v1.8.0
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+
+  flink-job:
+    build:
+      context: ../flink
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PUSHGATEWAY_URL: http://pushgateway:9091
+      WINDOW_SECONDS: "60"
+    depends_on:
+      - kafka
+      - pushgateway
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:
