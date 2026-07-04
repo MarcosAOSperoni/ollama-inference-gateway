@@ -1,4 +1,5 @@
 import json
+import math
 import os
 from typing import Iterable
 
@@ -13,7 +14,7 @@ def _compute_stats(latencies: list[float], error_count: int) -> dict:
     if not latencies:
         return {"mean_ms": 0.0, "p95_ms": 0.0, "error_rate": 0.0}
     sorted_l = sorted(latencies)
-    p95_idx = max(0, int(len(sorted_l) * 0.95) - 1)
+    p95_idx = max(0, math.ceil(len(sorted_l) * 0.95) - 1)
     return {
         "mean_ms": sum(sorted_l) / len(sorted_l),
         "p95_ms": sorted_l[p95_idx],
@@ -55,13 +56,25 @@ def main() -> None:
 
     class _ModelKeySelector(KeySelector):
         def get_key(self, value: str) -> str:
-            return json.loads(value)["model"]
+            try:
+                return json.loads(value)["model"]
+            except Exception:
+                return "unknown"
 
     class _InferenceWindowFunction(ProcessWindowFunction):
         def process(self, model: str, context, elements: Iterable[str]):
-            parsed = [json.loads(e) for e in elements]
-            latencies = [e["latency_ms"] for e in parsed]
-            errors = sum(1 for e in parsed if e["status"] == "error")
+            parsed = []
+            for e in elements:
+                try:
+                    parsed.append(json.loads(e))
+                except Exception:
+                    continue
+            if not parsed:
+                return
+            latencies = [e["latency_ms"] for e in parsed if "latency_ms" in e]
+            errors = sum(1 for e in parsed if e.get("status") == "error")
+            if not latencies:
+                return
             stats = _compute_stats(latencies, errors)
             _push_metrics(model, len(parsed), stats)
             yield model
