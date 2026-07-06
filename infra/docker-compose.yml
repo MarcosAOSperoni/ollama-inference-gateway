@@ -11,31 +11,6 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     restart: unless-stopped
 
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     ports:
@@ -76,6 +51,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  prometheus_data:
-  grafana_data:
   kafka_data:

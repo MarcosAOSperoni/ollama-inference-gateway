@@ -1,7 +1,4 @@
-include .env
-
 start:
-	envsubst < prometheus.yml.template > prometheus.yml
 	docker compose up -d
 
 stop:
