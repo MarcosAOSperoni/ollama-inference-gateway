@@ -2,6 +2,7 @@ backends:
   - url: "http://<mac-studio-ip>:11434"
     name: "mac-studio"
     models:
+      - "qwen2.5:32b"
       - "llama3:70b"
       - "gemma4:12b"
       - "nomic-embed-text"

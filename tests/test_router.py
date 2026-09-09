@@ -14,8 +14,15 @@ def _make_backend(name: str, models: list[str], priority: int) -> Backend:
 
 
 def setup_function():
+    # Serve whatever the settings actually route to, so these stay true when
+    # a model is swapped out. Naming models literally here made changing
+    # default_model look like a routing regression.
     config.backends = [
-        _make_backend("mac", ["llama3:70b", "gemma4:12b", "qwen2.5:7b"], priority=1),
+        _make_backend("mac", [
+            config.settings.default_model,
+            config.settings.small_model,
+            config.settings.tool_model,
+        ], priority=1),
     ]
 
 
@@ -27,27 +34,27 @@ def test_explicit_model_routes_to_correct_backend():
 
 def test_classify_task_type_resolves_to_small_model():
     model, backend = select_backend(None, "classify")
-    assert model == "gemma4:12b"
+    assert model == config.settings.small_model
 
 
 def test_generate_task_type_resolves_to_default_model():
     model, backend = select_backend(None, "generate")
-    assert model == "llama3:70b"
+    assert model == config.settings.default_model
 
 
 def test_tool_task_type_resolves_to_tool_model():
     model, backend = select_backend(None, "tool")
-    assert model == "qwen2.5:7b"
+    assert model == config.settings.tool_model
 
 
 def test_unknown_task_type_resolves_to_default_model():
     model, backend = select_backend(None, "unknown")
-    assert model == "llama3:70b"
+    assert model == config.settings.default_model
 
 
 def test_no_args_resolves_to_default_model():
     model, backend = select_backend(None, None)
-    assert model == "llama3:70b"
+    assert model == config.settings.default_model
 
 
 def test_picks_first_available_backend_by_priority():
@@ -89,3 +96,36 @@ def test_falls_back_to_priority_one_when_no_backend_serves_model():
     model, backend = select_backend("unknown-model:latest", None)
     assert model == "unknown-model:latest"
     assert backend.name == "mac"
+
+
+def test_every_routed_model_is_served_by_a_backend():
+    """The task_type map and backends.yml must not drift apart.
+
+    _resolve_model returns a model name and select_backend then looks for a
+    backend that declares it. If a routed model is missing from backends.yml
+    the request fails at dispatch rather than at startup, so the mistake shows
+    up as a runtime error on one task type only — exactly the trap when
+    default_model was moved to qwen2.5:32b and the model had to be added to
+    the mac-studio list in the same change.
+    """
+    import os
+    import yaml
+    from config import settings
+
+    here = os.path.dirname(__file__)
+    # backends.yml is gitignored environment config; a fresh clone and CI have
+    # only the example. Check the real file when it exists, the example
+    # otherwise, so this test runs everywhere.
+    path = os.path.join(here, "../infra/backends.yml")
+    if not os.path.exists(path):
+        path = os.path.join(here, "../infra/backends.yml.example")
+    with open(path) as f:
+        data = yaml.safe_load(f)
+
+    served = {m for b in data["backends"] for m in b["models"]}
+    for name, model in (
+        ("default_model", settings.default_model),
+        ("small_model", settings.small_model),
+        ("tool_model", settings.tool_model),
+    ):
+        assert model in served, f"{name}={model!r} is not served by any backend"
